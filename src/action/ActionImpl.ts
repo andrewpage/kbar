@@ -60,7 +60,11 @@ export class ActionImpl implements Action {
         parentActionImpl,
         `attempted to create an action whos parent: ${action.parent} does not exist in the store.`
       );
-      parentActionImpl.addChild(this);
+
+      if (parentActionImpl.children.findIndex(a => a.id === action.id) === -1) {
+        // If this is not already a child of the parent.
+        parentActionImpl.addChild(this);
+      }
     }
   }
 
