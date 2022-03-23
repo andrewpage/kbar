@@ -2,9 +2,18 @@ import { matchSorter } from "match-sorter";
 import * as React from "react";
 import type { ActionImpl } from "./action/ActionImpl";
 import { useKBar } from "./useKBar";
-import { useThrottledValue } from "./utils";
+import { Priority, useThrottledValue } from "./utils";
 
-export const NO_GROUP = "none";
+export const NO_GROUP = {
+  name: "none",
+  priority: Priority.LOW,
+};
+
+function order(a, b) {
+  return b.priority - a.priority;
+}
+
+type SectionName = string;
 
 /**
  * returns deep matches only when a search query is present
@@ -56,24 +65,36 @@ export function useMatches() {
   const matches = useInternalMatches(filtered, search);
 
   const results = React.useMemo(() => {
-    let groupMap: Record<string, ActionImpl[]> = {};
+    let map: Record<SectionName, ActionImpl[]> = {};
+    let list: { name: SectionName; priority: number }[] = [];
+    let ordered: { name: SectionName; actions: ActionImpl[] }[] = [];
+
     for (let i = 0; i < matches.length; i++) {
       const action = matches[i];
-      const section = action.section || NO_GROUP;
-      if (!groupMap[section]) {
-        groupMap[section] = [];
+      const section =
+        typeof action.section === "string"
+          ? { name: action.section, priority: Priority.NORMAL }
+          : action.section || NO_GROUP;
+      if (!map[section.name]) {
+        map[section.name] = [];
+        list.push(section);
       }
-      groupMap[section].push(action);
+      map[section.name].push(action);
     }
 
+    ordered = list.sort(order).map((group) => ({
+      name: group.name,
+      actions: map[group.name].sort(order),
+    }));
+
     let results: (string | ActionImpl)[] = [];
-    Object.keys(groupMap).forEach((name) => {
-      if (name !== NO_GROUP) results.push(name);
-      const actions = groupMap[name];
-      for (let i = 0; i < actions.length; i++) {
-        results.push(actions[i]);
+    for (let i = 0; i < ordered.length; i++) {
+      let group = ordered[i];
+      results.push(group.name);
+      for (let i = 0; i < group.actions.length; i++) {
+        results.push(group.actions[i]);
       }
-    });
+    }
 
     return results;
   }, [matches]);
